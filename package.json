@@ -1,0 +1,24 @@
+{
+  "name": "utilibot",
+  "version": "0.0.1",
+  "description": "A moderation-focused bot for your Discord server.",
+  "main": "mod.js",
+  "dependencies": {
+    "eris": "^0.5.2",
+    "pg": "^6.1.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Brayzure/utilibot.git"
+  },
+  "author": "Tyler Ricketts (Brayzure)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Brayzure/utilibot/issues"
+  },
+  "homepage": "https://lessis.moe/projects/utilibot"
+}
