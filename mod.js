@@ -76,7 +76,7 @@ client.on('messageCreate', (m) => {
 
 function log(location, content) {
 	if(location === 'botlog') {
-		if(client.ready) {
+		if(client.ready && config.error_channel) {
 			client.createMessage(config.error_channel, {embed: {
 				description: content
 			}}).catch(console.log);
@@ -84,7 +84,7 @@ function log(location, content) {
 		console.log(content);
 	}
 	if(location === 'info') {
-		if(client.ready) {
+		if(client.ready && config.log_channel) {
 			client.createMessage(config.log_channel, {embed: {
 				description: content
 			}}).catch(console.log);
@@ -92,7 +92,7 @@ function log(location, content) {
 		console.log(content);
 	}
 	if(location === 'pm') {
-		if(client.ready) {
+		if(client.ready && config.pm_channel) {
 			client.createMessage(config.pm_channel, {embed: {
 				description: content
 			}}).catch(console.log);
