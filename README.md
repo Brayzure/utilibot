@@ -11,3 +11,8 @@ a local copy will be made available once this project progresses further.
 I welcome contributions, but please follow the [guidelines](CONTRIBUTING.md).  
 It is expected that you have an intermediate level of experience with both Node.js
 and the Discord API in general.
+
+## Support
+For support with the existing bot, or two get more information on the rewrite or its
+current state of development, join the [support server](https://discord.gg/nZYtEyT) on
+Discord.
