@@ -12,13 +12,19 @@ const Eris = require('eris');
 const auth = require('./src/auth.json');
 // Bot Behavior
 const config = require('./src/config.json');
+log('debug', "Loaded external files!");
 
 /*
 * SESSION VARIABLES
 */
 // Users currently in the process of being moderated
 var modMutex = {};
+// Cached guild configs
+var serverConfig = {};
+// Client readiness
+var ready = false;
 
+log('debug', "Creating clients...");
 /*
 * CLIENT CREATION AND CONNECTION
 */
@@ -36,7 +42,14 @@ var pg = new Postgres.Client({
 	database: auth.pg_db
 });
 
+log('debug', "Connecting clients...");
 client.connect();
+pg.connect(function(err) {
+	if (err) throw err;
+
+	log('console', "Connected to Postgres database!");
+	//imp();
+});
 
 /*
 * EVENTS
@@ -66,7 +79,33 @@ client.on('shardResume', (id) => {
 });
 
 client.on('ready', () => {
-	log('botlog', `Client has finished launching ${client.shards.size} shards!`);
+	log('debug', "Discord client connected!");
+	// Get configs from database and cache them
+	pg.query('SELECT * FROM server_config', (err, res) => {
+		if(err) {
+			log('botlog', `Could not load the server configuration. Here's what went wrong: ${err}`);
+			process.exit();
+		}
+		for(let row of res.rows) {
+			serverConfig[row.id] = {
+				name: row.name,
+				announce: row.announce,
+				modlog: row.modlog,
+				verbose: row.verboselog,
+				prefix: row.prefix,
+				admin: row.admin,
+				mod: row.mod,
+				exempt: row.exempt,
+				blacklist: row.blacklist,
+				verboseIgnore: row.verbose_ignore,
+				verboseSettings: JSON.parse(row.verbose_settings),
+				filterSettings: JSON.parse(row.filter_settings),
+				muted: row.muted
+			}
+		}
+		ready = true;
+		log('botlog', `Client has finished launching ${client.shards.size} shards!`);
+	});
 });
 
 client.on('messageCreate', (m) => {
@@ -85,11 +124,14 @@ client.on('messageCreate', (m) => {
 	}
 });
 
+// Will use Postgres to retrieve a server's configuration
+function getServerConfig(guildID) {
 
+}
 
 function log(location, content) {
 	if(location === 'botlog') {
-		if(client.ready && config.error_channel) {
+		if(ready && config.error_channel) {
 			client.createMessage(config.error_channel, {embed: {
 				description: content
 			}}).catch(console.log);
@@ -97,7 +139,7 @@ function log(location, content) {
 		console.log(content);
 	}
 	if(location === 'info') {
-		if(client.ready && config.log_channel) {
+		if(ready && config.log_channel) {
 			client.createMessage(config.log_channel, {embed: {
 				description: content
 			}}).catch(console.log);
@@ -105,7 +147,7 @@ function log(location, content) {
 		console.log(content);
 	}
 	if(location === 'pm') {
-		if(client.ready && config.pm_channel) {
+		if(ready && config.pm_channel) {
 			client.createMessage(config.pm_channel, {embed: {
 				description: content
 			}}).catch(console.log);
@@ -187,4 +229,24 @@ function permissions(guild, channel, user) {
 		arr.push('manageServer', 'developer');
 	}
 	return arr;
+}
+
+// Import legacy config file to Postgres
+function imp() {
+	log('console', "Importing legacy configuration file...");
+	let c = require('./config.json').servers;
+	for(let id in c) {
+		if(c.hasOwnProperty(id)) {
+			let o = c[id];
+			pg.query({
+				text: "INSERT INTO server_config VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+				values: [id, o.announce, o.modlog, o.verbose, o.literal, o.name, o.admin, o.mod, o.exempt, o.verboseIgnore, JSON.stringify(o.verboseSettings), JSON.stringify(o.filterSettings), o.mute, o.blacklist]
+			}, (err, res) => {
+				if(err) {
+					console.log(err);
+					return;
+				}
+			});
+		}
+	}
 }
