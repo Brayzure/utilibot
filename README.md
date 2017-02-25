@@ -13,6 +13,6 @@ It is expected that you have an intermediate level of experience with both Node.
 and the Discord API in general.
 
 ## Support
-For support with the existing bot, or two get more information on the rewrite or its
+For support with the existing bot, or to get more information on the rewrite or its
 current state of development, join the [support server](https://discord.gg/nZYtEyT) on
 Discord.
