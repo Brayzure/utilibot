@@ -66,7 +66,7 @@ client.on('shardReady', (id) => {
 client.on('shardDisconnect', (err, id) => {
 	let str;
 	if(err) {
-		str = `Shard ${id} disconnected with this error: ${err}`;
+		str = `Shard ${id} disconnected. Here's what it said: ${err}`;
 	}
 	else {
 		str = `Shard ${id} disconnected without errors.`;
@@ -110,7 +110,10 @@ client.on('ready', () => {
 
 client.on('messageCreate', (m) => {
 	// Client not ready, let's avoid strange behavior
-	if(!client.ready) return;
+	if(!ready) return;
+
+	// Probably a webhook, ignore them
+	if(m.author.discriminator === '0000') return;
 
 	// PM not from the bot itself
 	if(!m.channel.guild && m.author.id !== client.user.id) {
@@ -120,14 +123,24 @@ client.on('messageCreate', (m) => {
 
 	// Not a PM
 	else {
-		
+		// Get permissions of user
+		let p = permissions(m.channel.guild, m.channel, m.author);
+		// console.log(exempt(m.channel.guild, m.channel, m.member));
+
+		let sc = serverConfig[m.channel.guild.id];
+		// Return if no config found. TODO: Have it create new config
+		if(!sc) {
+			return;
+		}
+
+		// Detect and parse commands
+		if(m.content.startsWith(sc.prefix)) {
+			let temp = m.content.split(' ');
+			let cmd = temp[0].slice(lit.length);
+			let args = temp.slice(1);
+		}
 	}
 });
-
-// Will use Postgres to retrieve a server's configuration
-function getServerConfig(guildID) {
-
-}
 
 function log(location, content) {
 	if(location === 'botlog') {
@@ -231,6 +244,50 @@ function permissions(guild, channel, user) {
 	return arr;
 }
 
+function exempt(guild, channel, member, perms) {
+	// Bots exempt by default
+	if(member.user.bot) {
+		return true;
+	}
+
+	let g = getRole(guild, channel, member, perms);
+	
+	return !!g;
+}
+
+function getRole(guild, channel, member, perms) {
+	let sc = serverConfig[guild.id];
+	if(!sc) {
+		return ROLES.MEMBER;
+	}
+	// TODO: Combine into one loop
+	for(role of member.roles) {
+		if(~sc.admin.indexOf(role)) {
+			return ROLES.ADMIN;
+		}
+	}
+	for(role of member.roles) {
+		if(~sc.mod.indexOf(role)) {
+			return ROLES.MOD;
+		}
+	}
+	for(role of member.roles) {
+		if(~sc.exempt.indexOf(role)) {
+			return ROLES.EXEMPT;
+		}
+	}
+	if(!perms) {
+		perms = permissions(guild, channel, member.user);
+	}
+	if(~perms.indexOf("manageServer")) {
+		return ROLES.ADMIN;
+	}
+	if(~perms.indexOf("banMembers")) {
+		return ROLES.MOD;
+	}
+	return ROLES.MEMBER;
+}
+
 // Import legacy config file to Postgres
 function imp() {
 	log('console', "Importing legacy configuration file...");
@@ -250,3 +307,11 @@ function imp() {
 		}
 	}
 }
+
+const ROLES = {
+	MEMBER: 0,
+	EXEMPT: 1,
+	MOD: 2,
+	ADMIN: 3,
+	DEVELOPER: 4
+};
