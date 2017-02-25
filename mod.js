@@ -136,7 +136,7 @@ client.on('messageCreate', (m) => {
 		// Detect and parse commands
 		if(m.content.startsWith(sc.prefix)) {
 			let temp = m.content.split(' ');
-			let cmd = temp[0].slice(lit.length);
+			let cmd = temp[0].slice(sc.prefix.length);
 			let args = temp.slice(1);
 		}
 	}
