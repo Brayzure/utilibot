@@ -15,6 +15,14 @@ const config = require('./src/config.json');
 log('debug', "Loaded external files!");
 
 /*
+* CUSTOM MODULES
+*/
+const Constants = require('./external/constants.js');
+const db = require('./external/db.js');
+const functions = require('./external/functions.js');
+const utils = require('./external/utils.js');
+
+/*
 * SESSION VARIABLES
 */
 // Users currently in the process of being moderated
@@ -104,13 +112,19 @@ client.on('ready', () => {
 			}
 		}
 		ready = true;
-		log('botlog', `Client has finished launching ${client.shards.size} shards!`);
+		log('botlog', `Client has finished launching ${client.shards.size} shards! Current Eris version: ${require("eris/package.json").version}`);
 	});
 });
 
 client.on('messageCreate', (m) => {
 	// Client not ready, let's avoid strange behavior
 	if(!ready) return;
+
+	// System message?
+	if(!m.author) {
+		console.log(m);
+		return;
+	}
 
 	// Probably a webhook, ignore them
 	if(m.author.discriminator === '0000') return;
@@ -122,7 +136,7 @@ client.on('messageCreate', (m) => {
 	}
 
 	// Not a PM
-	else {
+	else if(m.channel.guild){
 		// Get permissions of user
 		let p = permissions(m.channel.guild, m.channel, m.author);
 		// console.log(exempt(m.channel.guild, m.channel, m.member));
@@ -138,14 +152,34 @@ client.on('messageCreate', (m) => {
 			let temp = m.content.split(' ');
 			let cmd = temp[0].slice(sc.prefix.length);
 			let args = temp.slice(1);
+			let r = getRole(m.channel.guild, m.channel, m.member);
+			console.log(cmd, args, r);
+			if(r >= functions[cmd].perm) {
+				let context = {
+					config: config,
+					serverConfig: serverConfig,
+					modMutex: modMutex
+				};
+				let ret = functions[cmd].run(m, args, context);
+				
+				// We got an error, handle it
+				if(ret instanceof Error) {
+					m.channel.createMessage({
+						embed: {
+							color: 0xED1C24,
+							description: ret.toString()
+						}
+					}).catch(console.log);
+				}
+			}
 		}
 	}
 });
 
 function log(location, content) {
 	if(location === 'botlog') {
-		if(ready && config.error_channel) {
-			client.createMessage(config.error_channel, {embed: {
+		if(ready && config.bot_channel) {
+			client.createMessage(config.bot_channel, {embed: {
 				description: content
 			}}).catch(console.log);
 		}
@@ -256,36 +290,39 @@ function exempt(guild, channel, member, perms) {
 }
 
 function getRole(guild, channel, member, perms) {
+	if(member.user.id === config.dev_id) {
+		return Constants.Roles.Developer
+	}
 	let sc = serverConfig[guild.id];
 	if(!sc) {
-		return ROLES.MEMBER;
+		return Constants.Roles.Member;
 	}
 	// TODO: Combine into one loop
 	for(role of member.roles) {
 		if(~sc.admin.indexOf(role)) {
-			return ROLES.ADMIN;
+			return Constants.Roles.Admin;
 		}
 	}
 	for(role of member.roles) {
 		if(~sc.mod.indexOf(role)) {
-			return ROLES.MOD;
+			return Constants.Roles.Mod;
 		}
 	}
 	for(role of member.roles) {
 		if(~sc.exempt.indexOf(role)) {
-			return ROLES.EXEMPT;
+			return Constants.Roles.Exempt;
 		}
 	}
 	if(!perms) {
 		perms = permissions(guild, channel, member.user);
 	}
 	if(~perms.indexOf("manageServer")) {
-		return ROLES.ADMIN;
+		return Constants.Roles.Admin;
 	}
 	if(~perms.indexOf("banMembers")) {
-		return ROLES.MOD;
+		return Constants.Roles.Mod;
 	}
-	return ROLES.MEMBER;
+	return Constants.Roles.Member;
 }
 
 // Import legacy config file to Postgres
@@ -307,11 +344,3 @@ function imp() {
 		}
 	}
 }
-
-const ROLES = {
-	MEMBER: 0,
-	EXEMPT: 1,
-	MOD: 2,
-	ADMIN: 3,
-	DEVELOPER: 4
-};
