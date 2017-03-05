@@ -1,9 +1,9 @@
 {
 	"debug": false,
 	"shards": 1,
-	"global_prefix": "!?",
 	"error_channel": "",
 	"log_channel": "",
 	"pm_channel": ""
+	"global_prefix": "!!!",
 	"dev_id": "97771062690865152",
 }

@@ -151,6 +151,10 @@ client.on('messageCreate', (m) => {
 		if(m.content.startsWith(sc.prefix)) {
 			let temp = m.content.split(' ');
 			let cmd = temp[0].slice(sc.prefix.length);
+			// Command doesn't exist, abort!
+			if(!functions[cmd]) {
+				return;
+			}
 			let args = temp.slice(1);
 			let r = getRole(m.channel.guild, m.channel, m.member);
 			console.log(cmd, args, r);
@@ -160,7 +164,7 @@ client.on('messageCreate', (m) => {
 					serverConfig: serverConfig,
 					modMutex: modMutex
 				};
-				let ret = functions[cmd].run(m, args, context);
+				let ret = functions[cmd].run(m, args, client, context);
 				
 				// We got an error, handle it
 				if(ret instanceof Error) {

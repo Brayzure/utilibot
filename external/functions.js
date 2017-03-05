@@ -11,7 +11,7 @@ var functions = {
 		desc: "Evaluates a command",
 		long_desc: "Evaluates a command",
 		usage: "eval <command>",
-		run: function(m, args, context) {
+		run: function(m, args, client, context) {
 			if(m.author.id !== context.config.dev_id) {
 				return new Error("Must be developer to use this command.");
 			}
@@ -41,7 +41,7 @@ var functions = {
 		desc: "List the roles in a server",
 		long_desc: "Lists all roles in a server, along with their IDs",
 		usage: "eval <command>",
-		run: function(m, args, context) {
+		run: function(m, args, client, context) {
 			let str = "**Server Roles**";
 			m.channel.guild.roles.forEach((role) => {
 				str += `\n${role.name}   [${role.id}] `;
