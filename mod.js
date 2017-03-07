@@ -177,6 +177,11 @@ client.on('messageCreate', (m) => {
 		if(m.content.startsWith(sc.prefix)) {
 			let temp = m.content.split(' ');
 			let cmd = temp[0].slice(sc.prefix.length);
+			if(cmd === "override" || cmd === "o" && roleMask & Constants.Roles.Developer) {
+				cmd = args[0];
+				args = args.slice(1);
+				roleMask = Constants.Roles.All;
+			}
 			// Command doesn't exist, abort!
 			if(!functions[cmd]) {
 				return;

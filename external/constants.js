@@ -4,5 +4,6 @@ module.exports.Roles = {
 	Mod: 4,
 	Admin: 8,
 	Developer: 16,
-	ModPlus: this.Mod | this.Admin
+	Staff: 12,
+	All: 31
 }
