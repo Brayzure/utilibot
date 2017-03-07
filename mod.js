@@ -182,8 +182,6 @@ client.on('messageCreate', (m) => {
 				return;
 			}
 			let args = temp.slice(1);
-			console.log(cmd, args, r);
-			if(r >= functions[cmd].perm) {
 			console.log(cmd, args, roleMask);
 			if(roleMask & functions[cmd].perm) {
 				ack(m);
