@@ -32,6 +32,18 @@ for(func of functionList) {
 		log('console', `Error loading ${func} command. Here's what went wrong: ${e.toString()}`);
 	}
 }
+const filterList = require('./external/filters/index.json');
+var filters = {};
+for(filter of filterList) {
+	try {
+		let tempFilter = require(`./external/filters/${filter}.js`);
+		filters[filter] = tempFilter;
+		log('debug', `Loaded ${filter} filter.`);
+	}
+	catch(e) {
+		log('console', `Error loading ${filter} filter. Here's what went wrong: ${e.toString()}`);
+	}
+}
 
 /*
 * SESSION VARIABLES
@@ -157,6 +169,9 @@ client.on('messageCreate', (m) => {
 		if(!sc) {
 			return;
 		}
+		
+		// Needed for both commands and the filters
+		let r = getRole(m.channel.guild, m.channel, m.member);
 
 		// Detect and parse commands
 		if(m.content.startsWith(sc.prefix)) {
@@ -167,9 +182,9 @@ client.on('messageCreate', (m) => {
 				return;
 			}
 			let args = temp.slice(1);
-			let r = getRole(m.channel.guild, m.channel, m.member);
 			console.log(cmd, args, r);
 			if(r >= functions[cmd].perm) {
+				ack(m);
 				let context = {
 					config: config,
 					serverConfig: serverConfig,
@@ -188,8 +203,27 @@ client.on('messageCreate', (m) => {
 				}
 			}
 		}
+
+		let flag = processFilters(m, ["InviteGuard"])
+		if(flag) {
+			// Filter triggered, do something about it!
+		}
 	}
 });
+
+function processFilters(m, order) {
+	for(filter of order) {
+		if(filters[filter].run(m)) {
+			return filter;
+		}
+	}
+	return false;
+}
+
+function ack(m) {
+	m.addReaction('✅').catch(console.log);
+	// Don't really care if it fails
+}
 
 function log(location, content) {
 	if(location === 'botlog') {
