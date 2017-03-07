@@ -171,7 +171,7 @@ client.on('messageCreate', (m) => {
 		}
 		
 		// Needed for both commands and the filters
-		let r = getRole(m.channel.guild, m.channel, m.member);
+		let roleMask = getRoleMask(m.channel.guild, m.channel, m.member);
 
 		// Detect and parse commands
 		if(m.content.startsWith(sc.prefix)) {
@@ -184,6 +184,8 @@ client.on('messageCreate', (m) => {
 			let args = temp.slice(1);
 			console.log(cmd, args, r);
 			if(r >= functions[cmd].perm) {
+			console.log(cmd, args, roleMask);
+			if(roleMask & functions[cmd].perm) {
 				ack(m);
 				let context = {
 					config: config,
@@ -338,40 +340,41 @@ function exempt(guild, channel, member, perms) {
 	return !!g;
 }
 
-function getRole(guild, channel, member, perms) {
+function getRoleMask(guild, channel, member, perms) {
+	let mask = 0;
 	if(member.user.id === config.dev_id) {
-		return Constants.Roles.Developer
+		mask |= Constants.Roles.Developer
 	}
 	let sc = serverConfig[guild.id];
 	if(!sc) {
-		return Constants.Roles.Member;
+		return 0;
 	}
 	// TODO: Combine into one loop
 	for(role of member.roles) {
 		if(~sc.admin.indexOf(role)) {
-			return Constants.Roles.Admin;
+			mask |= Constants.Roles.Admin;
 		}
 	}
 	for(role of member.roles) {
 		if(~sc.mod.indexOf(role)) {
-			return Constants.Roles.Mod;
+			mask |= Constants.Roles.Mod;
 		}
 	}
 	for(role of member.roles) {
 		if(~sc.exempt.indexOf(role)) {
-			return Constants.Roles.Exempt;
+			mask |= Constants.Roles.Exempt;
 		}
 	}
 	if(!perms) {
 		perms = permissions(guild, channel, member.user);
 	}
-	if(~perms.indexOf("manageServer")) {
-		return Constants.Roles.Admin;
+	if(~perms.indexOf("manageServer") && !sc.admin.length) {
+		mask |= Constants.Roles.Admin;
 	}
-	if(~perms.indexOf("banMembers")) {
-		return Constants.Roles.Mod;
+	if(~perms.indexOf("banMembers") && !sc.mod.length) {
+		mask |= Constants.Roles.Mod;
 	}
-	return Constants.Roles.Member;
+	return mask;
 }
 
 // Import legacy config file to Postgres
