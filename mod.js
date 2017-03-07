@@ -19,8 +19,19 @@ log('debug', "Loaded external files!");
 */
 const Constants = require('./external/constants.js');
 const db = require('./external/db.js');
-const functions = require('./external/functions.js');
 const utils = require('./external/utils.js');
+const functionList = require('./external/functions/index.json');
+var functions = {};
+for(func of functionList) {
+	try {
+		let tempFunc = require(`./external/functions/${func}.js`);
+		functions[func] = tempFunc;
+		log('debug', `Loaded ${func} command.`);
+	}
+	catch(e) {
+		log('console', `Error loading ${func} command. Here's what went wrong: ${e.toString()}`);
+	}
+}
 
 /*
 * SESSION VARIABLES
