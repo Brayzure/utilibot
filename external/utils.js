@@ -24,6 +24,14 @@ var functions = {
 			lines.push(progress);
 			return lines;
 		}
+	},
+	debug: function(content) {
+		if(config.debug) {
+			console.log(`Debug: ${content}`);
+		}
+	},
+	console: function(content) {
+		console.log(content);
 	}
 }
 

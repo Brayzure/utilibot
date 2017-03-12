@@ -195,17 +195,17 @@ client.on('messageCreate', (m) => {
 					serverConfig: serverConfig,
 					modMutex: modMutex
 				};
-				let ret = functions[cmd].run(m, args, client, context);
-				
-				// We got an error, handle it
-				if(ret instanceof Error) {
-					m.channel.createMessage({
-						embed: {
-							color: 0xED1C24,
-							description: ret.toString()
-						}
-					}).catch(console.log);
-				}
+
+				functions[cmd].run(m, args, client, context).catch((e) => {
+					if(e) {
+						m.channel.createMessage({
+							embed: {
+								color: 0xED1C24,
+								description: e.toString()
+							}
+						}).catch(console.log);
+					}
+				});
 			}
 		}
 
@@ -214,6 +214,16 @@ client.on('messageCreate', (m) => {
 			// Filter triggered, do something about it!
 		}
 	}
+});
+
+client.on('guildCreate', (g) => {
+	let b = 0;
+	g.members.forEach((mem) => {
+		if(mem.user.bot) {
+			b++;
+		}
+	});
+	log("info", `I have joined **${g.name}**! Member data: **${g.members.size}** members and **${b}** bots. Total guilds: **${client.guilds.size}**`);
 });
 
 function processFilters(m, order) {
@@ -286,6 +296,8 @@ function canIMod(guild) {
 
 function permissions(guild, channel, user) {
 	let obj = {};
+	let member = guild.members.get(user.id);
+	if(!member) return [];
 	let roles = guild.members.get(user.id).roles;
 	if(!roles) return []; // Failed to find member info, assume no permissions
 
