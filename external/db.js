@@ -4,6 +4,7 @@ const utils = require('./utils.js');
 
 // Authentication Information
 const auth = require('../src/auth.json');
+const config = require('../src/config.json');
 
 var pg = new Postgres.Client({
 	user: auth.pg_user,
@@ -19,7 +20,7 @@ pg.connect(function(err) {
 });
 
 var functions = {
-	post: function(mod, user, guild, channel, type, reason, mid, casenum, client) {
+	postAudit: function(mod, user, guild, channel, type, reason, mid, casenum, client) {
 		return new Promise((resolve, reject) => {
 			let username = `${user.username}#${user.discriminator}`;
 			let modUser = `${mod.username}#${mod.discriminator}`;
@@ -49,6 +50,71 @@ var functions = {
 				}
 
 				return resolve(result.rows.length ? result.rows[0].casenum + 1 : 1);
+			});
+		});
+	},
+	getConfig: function(guildid) {
+		return new Promise((resolve, reject) => {
+			pg.query(`SELECT * FROM server_config${guildid?" WHERE id='"+guildid+"'":""}`, (err, res) => {
+				if(err) {
+					return reject(err);
+					process.exit();
+				}
+				let serverConfig = {};
+				for(let row of res.rows) {
+					serverConfig[row.id] = {
+						name: row.name,
+						announce: row.announce,
+						modlog: row.modlog,
+						verbose: row.verboselog,
+						prefix: row.prefix,
+						admin: row.admin,
+						mod: row.mod,
+						exempt: row.exempt,
+						blacklist: row.blacklist,
+						verboseIgnore: row.verbose_ignore,
+						verboseSettings: JSON.parse(row.verbose_settings),
+						filterSettings: JSON.parse(row.filter_settings),
+						muted: row.muted
+					}
+				}
+				if(guildid) {
+					return resolve(serverConfig[row.id]);
+				}
+				else {
+					return resolve(serverConfig);
+				}
+			});
+		});
+	},
+	postConfig: function(guild, info) {
+		return new Promise((resolve, reject) => {
+			// No info passed, generate default settings
+			if(!info) {
+				info = {
+					announce: "",
+					modlog: "",
+					verbose: "",
+					literal: config.global_prefix,
+					name: guild.name,
+					admin: [],
+					mod: [],
+					exempt: [],
+					verboseIgnore: [],
+					verboseSettings: "",
+					filterSettings: "",
+					muted: "",
+					blacklist: []
+				};
+			}
+			pg.query({
+				text: "INSERT INTO server_config VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (id) DO NOTHING",
+				values: [guild.id, info.announce, info.modlog, info.verbose, info.literal, info.name, info.admin, info.mod, info.exempt, info.verboseIgnore, JSON.stringify(info.verboseSettings), JSON.stringify(info.filterSettings), info.muted, info.blacklist]
+			}, (err, res) => {
+				if(err) {
+					return reject(err);
+				}
+				return resolve(info);
 			});
 		});
 	}

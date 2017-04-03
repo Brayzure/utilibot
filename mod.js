@@ -75,12 +75,15 @@ var pg = new Postgres.Client({
 
 log('debug', "Connecting clients...");
 client.connect();
+
+/*
 pg.connect(function(err) {
 	if (err) throw err;
 
 	log('console', "Connected to Postgres database!");
 	//imp();
 });
+*/
 
 /*
 * EVENTS
@@ -112,30 +115,12 @@ client.on('shardResume', (id) => {
 client.on('ready', () => {
 	log('debug', "Discord client connected!");
 	// Get configs from database and cache them
-	pg.query('SELECT * FROM server_config', (err, res) => {
-		if(err) {
-			log('botlog', `Could not load the server configuration. Here's what went wrong: ${err}`);
-			process.exit();
-		}
-		for(let row of res.rows) {
-			serverConfig[row.id] = {
-				name: row.name,
-				announce: row.announce,
-				modlog: row.modlog,
-				verbose: row.verboselog,
-				prefix: row.prefix,
-				admin: row.admin,
-				mod: row.mod,
-				exempt: row.exempt,
-				blacklist: row.blacklist,
-				verboseIgnore: row.verbose_ignore,
-				verboseSettings: JSON.parse(row.verbose_settings),
-				filterSettings: JSON.parse(row.filter_settings),
-				muted: row.muted
-			}
-		}
+	db.getConfig().then((c) => {
+		log('debug', `Retrieved server config for ${Object.keys(c).length} servers!`);
+		serverConfig = c;
 		ready = true;
-		log('botlog', `Client has finished launching ${client.shards.size} shards! Current Eris version: ${require("eris/package.json").version}`);
+	}).catch((err) => {
+		throw err;
 	});
 });
 
@@ -155,6 +140,14 @@ client.on('messageCreate', (m) => {
 	// PM not from the bot itself
 	if(!m.channel.guild && m.author.id !== client.user.id) {
 		let str = `New PM\nAuthor: ${m.author.username} (${m.author.id})\nContent: ${m.content}`;
+		// Detect and parse commands
+		if(m.content.startsWith(config.global_prefix)) {
+			let roleMask = 0;
+			if(m.author.id === config.dev_id) {
+				roleMask |= Constants.Roles.Developer;
+			}
+			processCommand(m, 1, roleMask);
+		}
 		log('pm', str);
 	}
 
@@ -165,8 +158,14 @@ client.on('messageCreate', (m) => {
 		// console.log(exempt(m.channel.guild, m.channel, m.member));
 
 		let sc = serverConfig[m.channel.guild.id];
-		// Return if no config found. TODO: Have it create new config
+		// Return if no config found. TODO: Make it more descriptive
 		if(!sc) {
+			db.postConfig(m.channel.guild).then((c) => {
+				log('debug', `Generated new config for missing guild: ${m.channel.guild.name}`);
+				serverConfig[m.channel.guild.id] = c;
+			}).catch((err) => {
+				log('warn', err.toString());
+			});
 			return;
 		}
 		
@@ -174,39 +173,8 @@ client.on('messageCreate', (m) => {
 		let roleMask = getRoleMask(m.channel.guild, m.channel, m.member);
 
 		// Detect and parse commands
-		if(m.content.startsWith(sc.prefix)) {
-			let temp = m.content.split(' ');
-			let cmd = temp[0].slice(sc.prefix.length);
-			if(cmd === "override" || cmd === "o" && roleMask & Constants.Roles.Developer) {
-				cmd = args[0];
-				args = args.slice(1);
-				roleMask = Constants.Roles.All;
-			}
-			// Command doesn't exist, abort!
-			if(!functions[cmd]) {
-				return;
-			}
-			let args = temp.slice(1);
-			console.log(cmd, args, roleMask);
-			if(roleMask & functions[cmd].perm) {
-				ack(m);
-				let context = {
-					config: config,
-					serverConfig: serverConfig,
-					modMutex: modMutex
-				};
-
-				functions[cmd].run(m, args, client, context).catch((e) => {
-					if(e) {
-						m.channel.createMessage({
-							embed: {
-								color: 0xED1C24,
-								description: e.toString()
-							}
-						}).catch(console.log);
-					}
-				});
-			}
+		if(m.content.startsWith(config.global_prefix)) {
+			processCommand(m, 0, roleMask);
 		}
 
 		let flag = processFilters(m, ["InviteGuard"])
@@ -225,6 +193,52 @@ client.on('guildCreate', (g) => {
 	});
 	log("info", `I have joined **${g.name}**! Member data: **${g.members.size}** members and **${b}** bots. Total guilds: **${client.guilds.size}**`);
 });
+
+function processCommand(m, pm, roleMask) {
+	let temp = m.content.split(' ');
+	let cmd = temp[0].slice(config.global_prefix.length);
+	if(cmd === "override" || cmd === "o" && roleMask & Constants.Roles.Developer) {
+		cmd = args[0];
+		args = args.slice(1);
+		roleMask = Constants.Roles.All;
+	}
+	// Command doesn't exist, abort!
+	if(!functions[cmd]) {
+		return;
+	}
+
+	if(functions[cmd].guildOnly && pm) {
+		m.channel.createMessage({
+			embed: {
+				color: 0xED1C24,
+				description: "You must run this command in a guild!"
+			}
+		}).catch(console.log);
+		return;
+	}
+
+	let args = temp.slice(1);
+	console.log(cmd, args, roleMask);
+	if(roleMask & functions[cmd].perm) {
+		ack(m);
+		let context = {
+			config: config,
+			serverConfig: serverConfig,
+			modMutex: modMutex
+		};
+
+		functions[cmd].run(m, args, client, context).catch((e) => {
+			if(e) {
+				m.channel.createMessage({
+					embed: {
+						color: 0xED1C24,
+						description: e.toString()
+					}
+				}).catch(console.log);
+			}
+		});
+	}
+}
 
 function processFilters(m, order) {
 	for(filter of order) {
@@ -410,4 +424,9 @@ function imp() {
 			});
 		}
 	}
+}
+
+function shutdown() {
+	// Things to do before we quit
+	process.exit()
 }
