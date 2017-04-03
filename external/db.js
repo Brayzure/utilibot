@@ -20,14 +20,14 @@ pg.connect(function(err) {
 });
 
 var functions = {
-	postAudit: function(mod, user, guild, channel, type, reason, mid, casenum, client) {
+	postAudit: function(mod, user, guild, channel, type, reason, casenum, duration, client, sc) {
 		return new Promise((resolve, reject) => {
 			let username = `${user.username}#${user.discriminator}`;
 			let modUser = `${mod.username}#${mod.discriminator}`;
 
 			pg.query({
 				text: 'INSERT INTO audit(username,userid,type,timestamp,guildid,moderator,modid,reason,casenum,messageid,duration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
-				values: [username, user.id, type, new Date(), guild.id, modUser, mod.id, reason, casenum, msg, duration]
+				values: [username, user.id, type, new Date(), guild.id, modUser, mod.id, reason, casenum, "", duration]
 			}, (err, result) => {
 
 				if(err) {
@@ -35,7 +35,13 @@ var functions = {
 				}
 
 				// Maybe pass a case object?
-				resolve();
+				let str = `Created new **${type}**! Case number: **${casenum}**.`;
+				if(!reason) {
+					str += `\nPlease run \`${sc.prefix}reason ${casenum} <reason>\`.`;
+				}
+				channel.createMessage(str).then((m) => {
+					resolve();
+				}).catch(() => {});
 			});
 		});
 	},
