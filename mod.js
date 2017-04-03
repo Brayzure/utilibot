@@ -117,6 +117,16 @@ client.on('ready', () => {
 	// Get configs from database and cache them
 	db.getConfig().then((c) => {
 		log('debug', `Retrieved server config for ${Object.keys(c).length} servers!`);
+		client.guilds.forEach((g) => {
+			if(!c[g.id]) {
+				db.postConfig(g).then((cfg) => {
+					log('debug', `Generated new config for missing guild: ${g.name}`);
+					serverConfig[g.id] = cfg;
+				}).catch((err) => {
+					log('warn', err.toString());
+				});
+			}
+		})
 		serverConfig = c;
 		ready = true;
 	}).catch((err) => {
