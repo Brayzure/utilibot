@@ -85,7 +85,7 @@ var functions = {
 					}
 				}
 				if(guildid) {
-					return resolve(serverConfig[row.id]);
+					return resolve(serverConfig[res.rows[0].id]);
 				}
 				else {
 					return resolve(serverConfig);

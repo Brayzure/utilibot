@@ -164,7 +164,7 @@ client.on('messageCreate', (m) => {
 	// Not a PM
 	else if(m.channel.guild){
 		// Get permissions of user
-		let p = permissions(m.channel.guild, m.channel, m.author);
+		let p = utils.permissions(m.channel.guild, m.channel, m.author);
 		// console.log(exempt(m.channel.guild, m.channel, m.member));
 
 		let sc = serverConfig[m.channel.guild.id];
@@ -308,66 +308,6 @@ function timestamp(time) {
 	let str = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`
 }
 
-function canIMod(guild) {
-	let perms = permissions(guild, guild.channels.get(guild.id), client.user);
-	let neededPerms = ['kickMembers', 'banMembers', 'manageMessages'];
-	let mod = true;
-	for(let i=0; i<neededPerms.length && mod; i++) {
-		if(!~perms.indexOf(neededPerms[i])) mod = false;
-	}
-	return mod;
-}
-
-function permissions(guild, channel, user) {
-	let obj = {};
-	let member = guild.members.get(user.id);
-	if(!member) return [];
-	let roles = guild.members.get(user.id).roles;
-	if(!roles) return []; // Failed to find member info, assume no permissions
-
-	// Determine channel overrides
-	channel.permissionOverwrites.forEach((over) => {
-		if(roles.includes(over.id) || over.id === guild.id) {
-			let j = over.json;
-			for(let key in j) {
-				if(j.hasOwnProperty(key) && (!obj.hasOwnProperty(key) || j[key])) {
-					obj[key] = j[key];
-				}
-			}
-		}
-	});
-	
-	// Determine global permissions
-	let r = guild.roles.get(guild.id); // Default permissions
-	let j = r.permissions.json;
-	for(let key in j) {
-		if(j.hasOwnProperty(key) && !obj.hasOwnProperty(key) && j[key]) {
-			obj[key] = true;
-		}
-	}
-	for(let i in roles) { // Permissions from roles
-		r = guild.roles.get(roles[i]);
-		j = r.permissions.json;
-		for(let key in j) {
-			if(j.hasOwnProperty(key) && j[key]) {
-				obj[key] = true;
-			}
-		}
-	}
-
-	// Convert object to array
-	let arr = [];
-	for(let key in obj) {
-		if(obj.hasOwnProperty(key) && obj[key]) {
-			arr.push(key);
-		}
-	}
-	if(user.id === auth.dev_id) {
-		arr.push('manageServer', 'developer');
-	}
-	return arr;
-}
-
 function exempt(guild, channel, member, perms) {
 	// Bots exempt by default
 	if(member.user.bot) {
@@ -405,7 +345,7 @@ function getRoleMask(guild, channel, member, perms) {
 		}
 	}
 	if(!perms) {
-		perms = permissions(guild, channel, member.user);
+		perms = utils.permissions(guild, channel, member.user);
 	}
 	if(~perms.indexOf("manageServer") && !sc.admin.length) {
 		mask |= Constants.Roles.Admin;
