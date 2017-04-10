@@ -92,6 +92,15 @@ var functions = {
 			if(!~perms.indexOf(neededPerms[i])) mod = false;
 		}
 		return mod;
+	},
+	PM: function(userID, message, client) {
+		client.getDMChannel(userID).then((c) => {
+			c.createMessage(message).then((m) => {
+
+			}).catch((err) => {
+
+			});
+		});
 	}
 }
 

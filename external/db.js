@@ -22,16 +22,22 @@ pg.connect(function(err) {
 var functions = {
 	postAudit: function(mod, user, guild, channel, type, reason, casenum, duration, client, sc) {
 		return new Promise((resolve, reject) => {
+			let caseObject = {};
+
 			let username = `${user.username}#${user.discriminator}`;
 			let modUser = `${mod.username}#${mod.discriminator}`;
 
 			pg.query({
-				text: 'INSERT INTO audit(username,userid,type,timestamp,guildid,moderator,modid,reason,casenum,messageid,duration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
+				text: 'INSERT INTO audit(username,userid,type,timestamp,guildid,moderator,modid,reason,casenum,messageid,duration) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
 				values: [username, user.id, type, new Date(), guild.id, modUser, mod.id, reason, casenum, "", duration]
 			}, (err, result) => {
 
 				if(err) {
 					reject(err);
+				}
+
+				if(result.rows.length) {
+					caseObject = result.rows[0];
 				}
 
 				// Maybe pass a case object?
@@ -40,8 +46,19 @@ var functions = {
 					str += `\nPlease run \`${sc.prefix}reason ${casenum} <reason>\`.`;
 				}
 				channel.createMessage(str).then((m) => {
-					resolve();
-				}).catch(() => {});
+					functions.postAuditMessage(guild.id, caseObject, client).then(() => {
+						return resolve();
+					}).catch((err) => {
+						if(err) {
+							return reject(err);
+						}
+						else {
+							return reject();
+						}
+					});
+				}).catch((err) => {
+					// Do something? Probably not
+				});
 			});
 		});
 	},
@@ -56,6 +73,80 @@ var functions = {
 				}
 
 				return resolve(result.rows.length ? result.rows[0].casenum + 1 : 1);
+			});
+		});
+	},
+	postAuditMessage: function(guildID, caseObject, client) {
+		return new Promise((resolve, reject) => {
+			functions.getConfig(guildID).then((c) => {
+				// Modlog channel set, post to it
+				if(c.modlog) {
+					let co = caseObject; // Typing is hard
+					let color = {
+						'Ban': 0xFF0000,
+						'Kick': 0xFFA500,
+						'Mute': 0xFFFF00,
+						'Warn': 0x00FF00
+					}
+					let emb = {
+						title: `Case: ${co.casenum} | ${co.type}`,
+						description: `**Reason**: ${(co.reason?co.reason:'\`No reason listed!\`')}`,
+						color: color[co.type],
+						author: {
+							name: `${co.username} (${co.userid})` // duh
+						},
+						footer: {
+							text: `Date: ${new Date(co.timestamp).toString()} | Moderator: ${co.moderator}`
+						}
+					}
+					if(co.messageid) {
+						// Edit the message
+						client.editMessage(c.modlog, co.messageid, {embed: emb}).then((m) => {
+							return resolve();
+						}).catch((err) => {
+							// Message deleted or channel moved, create new message
+							client.createMessage(c.modlog, {embed: emb}).then((m) => {
+								// Update db with message id
+								// WITH DEDICATED PATCH FUNCTION
+								// Nevermind lol
+								pg.query({
+									text: `UPDATE audit SET messageid = $1 WHERE caseid = $2`
+									values: [m.id, co.caseid]
+								}, (err, res) => {
+									if(err) {
+										return reject(err);
+									}
+									else {
+										return resolve();
+									}
+								});
+							}).catch((err) => {
+								return reject(new Error("Could not post audit message."))
+							});
+						});
+					}
+					else {
+						// Create new message
+						client.createMessage(c.modlog, {embed: emb}).then((m) => {
+							// Update db with message id
+							pg.query(`UPDATE audit SET messageid = ${m.id} WHERE caseid = ${co.caseid}`, (err, res) => {
+								if(err) {
+									return reject(err);
+								}
+								else {
+									return resolve();
+								}
+							});
+						}).catch((err) => {
+							return reject(new Error("Could not post audit message."))
+						});
+					}
+				}
+				else {
+					return resolve();
+				}
+			}).catch((err) => {
+				return reject(`Failed to retrieve config for server. Error: ${err.stack}`);
 			});
 		});
 	},

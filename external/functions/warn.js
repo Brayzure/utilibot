@@ -34,12 +34,20 @@ var func = {
 				reason = args.slice(1).join(' ');
 			}
 
+			let str = `You have received a warning in **${m.channel.guild.name}** from **${m.author.username}**.`;
+			if(reason) {
+				str += `\nA reason was provided: ${reason}`;
+			}
+			str += "\nNo other action has been taken.\nConsider messaging the moderator for a more detailed explanation.";
+
+			utils.PM(id, str, client);
+
 			db.getNextCaseNumber(m.channel.guild.id).then((num) => {
 				db.postAudit(m.author, u, m.channel.guild, m.channel, "Warn", reason, num, 0, client, context.serverConfig[m.channel.guild.id])
 				.then(() => {
-					resolve();
+					return resolve();
 				}).catch((err) => {
-					reject(err);
+					return reject(err);
 				});
 			}).catch((err) => {
 				reject(err);
