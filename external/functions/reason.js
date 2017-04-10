@@ -22,10 +22,16 @@ var func = {
 				return reject(new Error("First argument must be a case number!"));
 			}
 
+
 			let caseNum = parseInt(args[0]);
 			let reason = args.slice(1).join(' ');
 
 			db.getCase(m.channel.guild.id, caseNum).then((caseObject) => {
+				
+				if(!(context.roleMask & Constants.Roles.Admin) && m.author.id != caseObject.modid) {
+					return reject(new Error("You must be an admin or the moderator that performed the action to edit the reason!"));
+				}
+
 				caseObject.reason = reason;
 				db.editReason(caseObject, client).then(() => {
 					return resolve();

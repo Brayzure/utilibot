@@ -234,7 +234,8 @@ function processCommand(m, pm, roleMask) {
 		let context = {
 			config: config,
 			serverConfig: serverConfig,
-			modMutex: modMutex
+			modMutex: modMutex,
+			roleMask: roleMask
 		};
 
 		functions[cmd].run(m, args, client, context).catch((e) => {

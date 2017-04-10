@@ -94,13 +94,20 @@ var functions = {
 		return mod;
 	},
 	PM: function(userID, message, client) {
-		client.getDMChannel(userID).then((c) => {
-			c.createMessage(message).then((m) => {
-
+		// Don't care if they receive the PM or not
+		// RESOLVE ALL OF IT
+		return new Promise((resolve, reject) => {
+			client.getDMChannel(userID).then((c) => {
+				c.createMessage(message).then((m) => {
+					return resolve();
+				}).catch((err) => {
+					return resolve();
+				});
 			}).catch((err) => {
-
+				return resolve();
 			});
 		});
+		
 	}
 }
 
