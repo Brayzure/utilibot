@@ -19,7 +19,7 @@ var func = {
 			}
 
 			if(isNaN(args[0])) {
-				return reject(new Error("First argument is a case number!"));
+				return reject(new Error("First argument must be a case number!"));
 			}
 
 			let caseNum = parseInt(args[0]);
