@@ -76,6 +76,43 @@ var functions = {
 			});
 		});
 	},
+	editReason: function(caseObject, client) {
+		return new Promise((resolve, reject) => {
+			pg.query({
+				text: `UPDATE audit SET reason = $1 WHERE caseid = $2`,
+				values: [caseObject.reason, caseObject.caseid]
+			}, (err, res) => {
+				if(err) {
+					return reject(err);
+				}
+				else {
+					functions.postAuditMessage(caseObject.guildid, caseObject, client).then(() => {
+						return resolve();
+					}).catch((err) => {
+						return reject(err);
+					});
+				}
+			});
+		});
+	},
+	getCase: function(guildID, casenum) {
+		return new Promise((resolve, reject) => {
+			pg.query({
+				text: "SELECT * FROM audit WHERE guildid = $1 AND casenum = $2",
+				values: [guildID, casenum]
+			}, (err, result) => {
+				if(err) {
+					return reject(err);
+				}
+
+				if(!result.rows.length) {
+					return reject(new Error("No case found for that case number!"));
+				}
+
+				return resolve(result.rows[0]);
+			});
+		});
+	},
 	postAuditMessage: function(guildID, caseObject, client) {
 		return new Promise((resolve, reject) => {
 			functions.getConfig(guildID).then((c) => {
@@ -110,7 +147,7 @@ var functions = {
 								// WITH DEDICATED PATCH FUNCTION
 								// Nevermind lol
 								pg.query({
-									text: `UPDATE audit SET messageid = $1 WHERE caseid = $2`
+									text: `UPDATE audit SET messageid = $1 WHERE caseid = $2`,
 									values: [m.id, co.caseid]
 								}, (err, res) => {
 									if(err) {
@@ -129,7 +166,10 @@ var functions = {
 						// Create new message
 						client.createMessage(c.modlog, {embed: emb}).then((m) => {
 							// Update db with message id
-							pg.query(`UPDATE audit SET messageid = ${m.id} WHERE caseid = ${co.caseid}`, (err, res) => {
+							pg.query({
+								text: `UPDATE audit SET messageid = $1 WHERE caseid = $2`,
+								values: [m.id, co.caseid]
+							}, (err, res) => {
 								if(err) {
 									return reject(err);
 								}
