@@ -244,9 +244,45 @@ var functions = {
 					blacklist: []
 				};
 			}
+
+			// Construct query
+			let q = "INSERT INTO server_config VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (id) ";
+			q += "DO UPDATE SET announce = $2, modlog = $3, verboselog = $4, prefix = $5, name = $6, admin = $7, mod = $8, exempt = $9, ";
+			q += "verbose_ignore = $10, verbose_settings = $11, filter_settings = $12, muted = $13, blacklist = $14"
 			pg.query({
-				text: "INSERT INTO server_config VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (id) DO NOTHING",
+				text: q,
 				values: [guild.id, info.announce, info.modlog, info.verbose, info.literal, info.name, info.admin, info.mod, info.exempt, info.verboseIgnore, JSON.stringify(info.verboseSettings), JSON.stringify(info.filterSettings), info.muted, info.blacklist]
+			}, (err, res) => {
+				if(err) {
+					return reject(err);
+				}
+				return resolve(info);
+			});
+		});
+	},
+	postMember: function(member, info) {
+		return new Promise((resolve, reject) => {
+			// No info passed, create defaults
+			if(!info) {
+				info = {
+					usernames: [`${member.user.username}#${member.user.discriminator}`],
+					nicknames: [],
+					joinDates: [new Date(member.joinedAt)],
+					avatar: member.avatarURL,
+					muted: false
+				}
+				if(member.nickname) {
+					info.nicknames.push(member.nickname);
+				}
+			}
+
+			// Construct query
+			// We do nothing on conflicts, because we should have separate functions for editing data
+			// This is only intended to be used to add new members
+			let q = "INSERT INTO members VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id, guildid) DO NOTHING";
+			pg.query({
+				text: q,
+				values: [member.user.id, member.guild.id, info.nicknames, info.usernames, info.join_dates, info.avatar, info. muted]
 			}, (err, res) => {
 				if(err) {
 					return reject(err);

@@ -77,17 +77,22 @@ log('debug', "Connecting clients...");
 client.connect();
 
 /*
-pg.connect(function(err) {
-	if (err) throw err;
-
-	log('console', "Connected to Postgres database!");
-	//imp();
-});
-*/
-
-/*
 * EVENTS
 */
+// Log errors, but don't crash
+if(config.persist) {
+	// Something broke
+	process.on('uncaughtException', (e) => {
+		log('botlog', e.stack);
+	});
+
+	// A promise got rejected, and we weren't there to comfort it :(
+	process.on('unhandledRejection', (reason, p) => {
+		log('botlog', `Unhandled Rejection: ${reason}`);
+	});
+}
+
+// A single shard has readied
 client.on('shardReady', (id) => {
 	if(client.ready) {
 		log('botlog', `Shard ${id} ready!`);
@@ -97,6 +102,7 @@ client.on('shardReady', (id) => {
 	}
 });
 
+// A single shard has disconnected
 client.on('shardDisconnect', (err, id) => {
 	let str;
 	if(err) {
@@ -108,32 +114,65 @@ client.on('shardDisconnect', (err, id) => {
 	log('botlog', str);
 });
 
+// A single shard has resumed
 client.on('shardResume', (id) => {
 	log('botlog', `Shard ${id} has successfully resumed!`);
 });
 
+// All shards readied
 client.on('ready', () => {
 	log('debug', "Discord client connected!");
 	// Get configs from database and cache them
 	db.getConfig().then((c) => {
 		log('debug', `Retrieved server config for ${Object.keys(c).length} servers!`);
+		
+		// Backfill config
+		let guildErrors = false;
+		let memberErrors = false;
+		let newGuilds = 0;
+		let newMembers = 0;
 		client.guilds.forEach((g) => {
+			// Guild config not found, make a default one
 			if(!c[g.id]) {
 				db.postConfig(g).then((cfg) => {
 					log('debug', `Generated new config for missing guild: ${g.name}`);
 					serverConfig[g.id] = cfg;
+					newGuilds++;
 				}).catch((err) => {
-					log('warn', err.toString());
+					guildErrors = true;
+					log('console', err.toString());
 				});
 			}
-		})
+
+			// Iterate over all members
+			g.members.forEach((mem) => {
+				// Instead of loading 200k members into member, let the db handle conflicts
+				db.postMember(mem).then(() => {
+					newMembers++;
+					return;
+				}).catch((err) => {
+					memberErrors = true;
+					log('console', err.toString());
+				})
+			});
+		});
 		serverConfig = c;
 		ready = true;
+
+		if(guildErrors) {
+			log('botlog', "There were errors creating new guild configs, please review console.");
+		}
+
+		if(memberErrors) {
+			log('botlog', "There were errors creating new member data, please review console.");
+		}
+		log('botlog', `Client has finished initialization! ${newGuilds} new guilds and ${newMembers} new members.`);
 	}).catch((err) => {
 		throw err;
 	});
 });
 
+// New message detected
 client.on('messageCreate', (m) => {
 	// Client not ready, let's avoid strange behavior
 	if(!ready) return;
@@ -174,7 +213,7 @@ client.on('messageCreate', (m) => {
 				log('debug', `Generated new config for missing guild: ${m.channel.guild.name}`);
 				serverConfig[m.channel.guild.id] = c;
 			}).catch((err) => {
-				log('warn', err.toString());
+				log('console', err.toString());
 			});
 			return;
 		}
@@ -194,6 +233,17 @@ client.on('messageCreate', (m) => {
 	}
 });
 
+// Message was deleted, but not bulk deleted
+client.on('messageDelete', (m) => {
+	if(!m.author || !m.channel.guild || !ready) {
+		return;
+	}
+	let str = `**Channel**: <#${m.channel.id}> **${m.author.username}#${m.author.discriminator}'s** message was deleted. Content:\n`;
+	str += m.cleanContent;
+	verbose(m.channel.guild, 'MessageDelete', str);
+});
+
+// We joined a new guild!
 client.on('guildCreate', (g) => {
 	let b = 0;
 	g.members.forEach((mem) => {
@@ -204,6 +254,65 @@ client.on('guildCreate', (g) => {
 	log("info", `I have joined **${g.name}**! Member data: **${g.members.size}** members and **${b}** bots. Total guilds: **${client.guilds.size}**`);
 });
 
+// A guild member got banned
+client.on('guildBanAdd', (guild, user) => {
+	let str = `**${user.username}#${user.discriminator}** was banned from the guild. Total members: **${guild.memberCount}**`;
+	verbose(guild, "UserMod", str);
+});
+
+// A guild member got unbanned
+client.on('guildBanRemove', (guild, user) => {
+	let str = `**${user.username}#${user.discriminator}** was unbanned from the guild.`;
+	verbose(guild, "UserMod", str);
+});
+
+// A user has joined this guild
+client.on('guildMemberAdd', (guild, member) => {
+	let str = `**${member.user.username}#${member.user.discriminator}** joined the guild. Total members: **${guild.memberCount}**`;
+	verbose(guild, "UserJoin", str);
+});
+
+// A guild member has left the guild
+client.on('guildMemberRemove', (guild, member) => {
+	if(!member) return;
+	let str = `**${member.user.username}#${member.user.discriminator}** left the guild, or was kicked. Total members: **${guild.memberCount}**`;
+	verbose(guild, "UserLeave", str);
+});
+
+// A guild member has been changed
+client.on('guildMemberUpdate', (guild, newMember, oldMember) => {
+	let str = '';
+	
+	// Nickname was changed, not necessarily by the member themselves
+	if(newMember.nick !== oldMember.nick) {
+		let oldNick = (oldMember.nick) ? oldMember.nick : 'None';
+		let newNick = (newMember.nick) ? newMember.nick : 'None';
+		str = `**${newMember.user.username}#${newMember.user.discriminator}** changed their nickname from **${oldNick}** to **${newNick}**.`;
+	}
+
+	// Roles were changed
+	else if(newMember.roles.length != oldMember.roles.length) {
+		let oldRoles = [];
+		let newRoles = [];
+		for(let i=0; i<oldMember.roles.length; i++) {
+			oldRoles.push(guild.roles.get(oldMember.roles[i]).name);
+		}
+		for(let i=0; i<newMember.roles.length; i++) {
+			newRoles.push(guild.roles.get(newMember.roles[i]).name);
+		}
+		str += `**${newMember.user.username}#${newMember.user.discriminator}'s** roles have changed.`;
+		str += `\nOld: \`${oldRoles.length ? oldRoles.join(', ') : 'None'}\``;
+		str += `\nNew: \`${newRoles.length ? newRoles.join(', ') : 'None'}\``;
+	}
+
+	// Not quite sure what happened
+	else {
+		return;
+	}
+	verbose(guild, "UserUpdate", str);
+});
+
+// Overall command handler
 function processCommand(m, pm, roleMask) {
 	let temp = m.content.split(' ');
 	let cmd = temp[0].slice(config.global_prefix.length);
@@ -217,6 +326,7 @@ function processCommand(m, pm, roleMask) {
 		return;
 	}
 
+	// Inform user that command must be run in a guild
 	if(functions[cmd].guildOnly && pm) {
 		m.channel.createMessage({
 			embed: {
@@ -227,9 +337,12 @@ function processCommand(m, pm, roleMask) {
 		return;
 	}
 
+	// Parse commands
 	let args = temp.slice(1);
-	console.log(cmd, args, roleMask);
+	console.log(cmd, args, roleMask); // Remove before full deployment
 	if(roleMask & functions[cmd].perm) {
+		
+		// Acknowledge message with check mark reaction if possible
 		ack(m);
 		let context = {
 			config: config,
@@ -238,6 +351,7 @@ function processCommand(m, pm, roleMask) {
 			roleMask: roleMask
 		};
 
+		// Run command and handle response
 		functions[cmd].run(m, args, client, context).catch((e) => {
 			if(e) {
 				m.channel.createMessage({
@@ -251,6 +365,7 @@ function processCommand(m, pm, roleMask) {
 	}
 }
 
+// Overall filter processor
 function processFilters(m, order) {
 	for(filter of order) {
 		if(filters[filter].run(m)) {
@@ -260,12 +375,40 @@ function processFilters(m, order) {
 	return false;
 }
 
+// Server log handler
+function verbose(guild, type, content) {
+	// No log posting
+	if(config.silent) {
+		return;
+	}
+
+	// Logs of this type are disabled, or channel is not set
+	if(!serverConfig[guild.id].verbose || !serverConfig[guild.id].verboseSettings[type]) {
+		return;
+	}
+
+	let emote = {
+		"UserJoin": ":white_check_mark:",
+		"UserLeave": ":x:",
+		"MessageDelete": ":pencil:",
+		"UserUpdate": ":person_with_pouting_face:",
+		"UserMod": ":hammer:"
+	}
+
+	let time = new Date().toTimeString().slice(0,8);
+	let str = `${emote[type]} \`[${time}]\` ${content.replace('@', '@\u200b')}`;
+	client.createMessage(serverConfig[guild.id].verbose, str).catch(console.log);
+}
+
+// Message reaction function
 function ack(m) {
 	m.addReaction('✅').catch(console.log);
 	// Don't really care if it fails
 }
 
+// Private bot log handler
 function log(location, content) {
+	// Possibly bad stuff happening
 	if(location === 'botlog') {
 		if(ready && config.bot_channel) {
 			client.createMessage(config.bot_channel, {embed: {
@@ -274,6 +417,8 @@ function log(location, content) {
 		}
 		console.log(content);
 	}
+
+	// Unimportant info
 	if(location === 'info') {
 		if(ready && config.log_channel) {
 			client.createMessage(config.log_channel, {embed: {
@@ -282,6 +427,8 @@ function log(location, content) {
 		}
 		console.log(content);
 	}
+
+	// New PM received
 	if(location === 'pm') {
 		if(ready && config.pm_channel) {
 			client.createMessage(config.pm_channel, {embed: {
@@ -290,14 +437,19 @@ function log(location, content) {
 		}
 		console.log(content);
 	}
+
+	// Console output
 	if(location === 'console') {
 		console.log(content);
 	}
+
+	// Debug output
 	if(location === 'debug' && config.debug) {
 		console.log(`Debug: ${content}`);
 	}
 }
 
+// Incomplete timestamp function
 function timestamp(time) {
 	let d;
 	if(time) {
@@ -309,6 +461,7 @@ function timestamp(time) {
 	let str = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`
 }
 
+// Determines if a user is exempt from moderation
 function exempt(guild, channel, member, perms) {
 	// Bots exempt by default
 	if(member.user.bot) {
@@ -320,6 +473,7 @@ function exempt(guild, channel, member, perms) {
 	return !!g;
 }
 
+// Gets the bitwise permission mask for a member
 function getRoleMask(guild, channel, member, perms) {
 	let mask = 0;
 	if(member.user.id === config.dev_id) {
