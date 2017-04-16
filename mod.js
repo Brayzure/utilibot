@@ -26,10 +26,14 @@ for(func of functionList) {
 	try {
 		let tempFunc = require(`./external/functions/${func}.js`);
 		functions[func] = tempFunc;
-		log('debug', `Loaded ${func} command.`);
+		log('debug', `Loaded '${func}' command.`);
+		for(alias of tempFunc.aliases) {
+			functions[alias] = tempFunc;
+			log('debug', `Loaded '${func}' command alias '${alias}'.`);
+		}
 	}
 	catch(e) {
-		log('console', `Error loading ${func} command. Here's what went wrong: ${e.toString()}`);
+		log('console', `Error loading '${func}' command. Here's what went wrong: ${e.toString()}`);
 	}
 }
 const filterList = require('./external/filters/index.json');
@@ -38,10 +42,10 @@ for(filter of filterList) {
 	try {
 		let tempFilter = require(`./external/filters/${filter}.js`);
 		filters[filter] = tempFilter;
-		log('debug', `Loaded ${filter} filter.`);
+		log('debug', `Loaded '${filter}' filter.`);
 	}
 	catch(e) {
-		log('console', `Error loading ${filter} filter. Here's what went wrong: ${e.toString()}`);
+		log('console', `Error loading '${filter}' filter. Here's what went wrong: ${e.toString()}`);
 	}
 }
 
@@ -270,6 +274,14 @@ client.on('guildBanRemove', (guild, user) => {
 client.on('guildMemberAdd', (guild, member) => {
 	let str = `**${member.user.username}#${member.user.discriminator}** joined the guild. Total members: **${guild.memberCount}**`;
 	verbose(guild, "UserJoin", str);
+
+	// Add member to guild config
+	// TODO: Make logs more descriptive
+	db.postMember(member).then(() => {
+		log('debug', "Added member to database.");
+	}).catch((err) => {
+		log('botlog', `Error adding member to database. ${err.toString()}`)
+	});
 });
 
 // A guild member has left the guild
@@ -282,12 +294,20 @@ client.on('guildMemberRemove', (guild, member) => {
 // A guild member has been changed
 client.on('guildMemberUpdate', (guild, newMember, oldMember) => {
 	let str = '';
+	let username = `${newMember.user.username}#${newMember.user.discriminator}`;
 	
 	// Nickname was changed, not necessarily by the member themselves
 	if(newMember.nick !== oldMember.nick) {
 		let oldNick = (oldMember.nick) ? oldMember.nick : 'None';
 		let newNick = (newMember.nick) ? newMember.nick : 'None';
-		str = `**${newMember.user.username}#${newMember.user.discriminator}** changed their nickname from **${oldNick}** to **${newNick}**.`;
+		str = `**${username}** changed their nickname from **${oldNick}** to **${newNick}**.`;
+		if(newMember.nick) {
+			db.postNickname(newMember).then(() => {
+				log('debug', `Added nickname '${newNick}' to member '${username}'`);
+			}).catch((err) => {
+				log('botinfo', `Error adding nickname to database. ${e.toString()}`);
+			});
+		}
 	}
 
 	// Roles were changed
@@ -300,7 +320,7 @@ client.on('guildMemberUpdate', (guild, newMember, oldMember) => {
 		for(let i=0; i<newMember.roles.length; i++) {
 			newRoles.push(guild.roles.get(newMember.roles[i]).name);
 		}
-		str += `**${newMember.user.username}#${newMember.user.discriminator}'s** roles have changed.`;
+		str += `**${username}'s** roles have changed.`;
 		str += `\nOld: \`${oldRoles.length ? oldRoles.join(', ') : 'None'}\``;
 		str += `\nNew: \`${newRoles.length ? newRoles.join(', ') : 'None'}\``;
 	}
@@ -402,7 +422,11 @@ function verbose(guild, type, content) {
 
 // Message reaction function
 function ack(m) {
-	m.addReaction('✅').catch(console.log);
+	m.addReaction('✅').then(() => {
+		setTimeout(() => {
+			m.removeReaction('✅').catch(() => {});
+		}, 15e3);
+	}).catch(() => {});
 	// Don't really care if it fails
 }
 

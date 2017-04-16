@@ -9,6 +9,7 @@ var func = {
 	perm: Constants.Roles.Staff,
 	hidden: false,
 	guildOnly: true,
+	aliases: ["w"],
 	desc: "Warns a user",
 	long_desc: "Adds a warning to a user's log",
 	usage: "warn <user mention/id> <reason>",

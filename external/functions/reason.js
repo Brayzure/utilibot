@@ -9,6 +9,7 @@ var func = {
 	perm: Constants.Roles.Staff,
 	hidden: false,
 	guildOnly: true,
+	aliases: ["r"],
 	desc: "Updates the reason for a case",
 	long_desc: "Updates the reason for a case",
 	usage: "reason <case number> <reason>",

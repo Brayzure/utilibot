@@ -9,6 +9,7 @@ var func = {
 	perm: Constants.Roles.Staff,
 	hidden: false,
 	guildOnly: true,
+	aliases: ["k"],
 	desc: "Kicks a user",
 	long_desc: "Kicks a user from the server",
 	usage: "kick <user mention/id> <reason>",

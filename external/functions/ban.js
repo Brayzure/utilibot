@@ -9,6 +9,7 @@ var func = {
 	perm: Constants.Roles.Staff,
 	hidden: false,
 	guildOnly: true,
+	aliases: ["b"],
 	desc: "Bans a user",
 	long_desc: "Bans a user from the server",
 	usage: "ban <user mention/id> <reason>",

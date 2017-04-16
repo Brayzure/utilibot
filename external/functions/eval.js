@@ -8,6 +8,7 @@ var func = {
 	perm: Constants.Roles.Developer,
 	hidden: true,
 	guildOnly: false,
+	aliases: ["e"],
 	desc: "Evaluates a command",
 	long_desc: "Evaluates a command",
 	usage: "eval <command>",

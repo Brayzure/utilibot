@@ -277,17 +277,66 @@ var functions = {
 			}
 
 			// Construct query
-			// We do nothing on conflicts, because we should have separate functions for editing data
-			// This is only intended to be used to add new members
-			let q = "INSERT INTO members VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id, guildid) DO NOTHING";
+			// On conflict, that means member has rejoined a community it previously left
+			// So, append date to the array
+			let q = "INSERT INTO members VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id, guildid) DO ";
+			q += "UPDATE SET join_dates = members.join_dates || $5"
 			pg.query({
 				text: q,
-				values: [member.user.id, member.guild.id, info.nicknames, info.usernames, info.join_dates, info.avatar, info. muted]
+				values: [member.user.id, member.guild.id, info.nicknames, info.usernames, info.join_dates, info.avatar, info.muted]
 			}, (err, res) => {
 				if(err) {
 					return reject(err);
 				}
 				return resolve(info);
+			});
+		});
+	},
+	getMember: function(member) {
+		return new Promise((resolve, reject) => {
+			let q = "SELECT * FROM members WHERE id = $1 AND guildid = $2";
+			pg.query({
+				text: q,
+				values: [member.user.id, member.guild.id]
+			}, (err, res) => {
+				if(err) {
+					return reject(err);
+				}
+
+				if(!res.rows.length) {
+					return reject(new Error(`No member found with ID: ${member.user.id} and Guild ID: ${member.guild.id}`));
+				}
+
+				return resolve(res.rows[0]);
+			});
+		});
+	},
+	postNickname: function(member) {
+		return new Promise((resolve, reject) => {
+			let q = "UPDATE members SET nicknames = nicknames || $1 WHERE id = $2 AND guildid = $3";
+			pg.query({
+				text: q,
+				values: [member.nickname, member.user.id, member.guild.id]
+			}, (err, res) => {
+				if(err) {
+					return reject(err);
+				}
+				return resolve();
+			});
+		});
+	},
+	postUsername: function(member) {
+		return new Promise((resolve, reject) => {
+			let q = "UPDATE members SET usernames = usernames || $1 WHERE id = $2 AND guildid = $3";
+			let username = `${member.user.username}#${member.user.discriminator}`;
+			pg.query({
+				text: q,
+				values: [username, member.user.id, member.guild.id]
+			}, (err, res) => {
+				if(err) {
+					return reject(err);
+				}
+				return resolve();
 			});
 		});
 	}

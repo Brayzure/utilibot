@@ -8,6 +8,7 @@ var func = {
 	perm: Constants.Roles.Admin,
 	hidden: false,
 	guildOnly: true,
+	aliases: ["lr"],
 	desc: "List the roles in a server",
 	long_desc: "Lists all roles in a server, along with their IDs",
 	usage: "eval <command>",
