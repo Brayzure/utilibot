@@ -1,6 +1,7 @@
 const fs = require('fs');
 const Postgres = require('pg');
 const utils = require('./utils.js');
+const Constants = require('./constants.js');
 
 // Authentication Information
 const auth = require('../src/auth.json');
@@ -119,18 +120,12 @@ var functions = {
 				// Modlog channel set, post to it
 				if(c.modlog) {
 					let co = caseObject; // Typing is hard
-					let color = {
-						'Ban': 0xFF0000,
-						'Kick': 0xFFA500,
-						'Mute': 0xFFFF00,
-						'Warn': 0x00FF00
-					}
 					let emb = {
 						title: `Case: ${co.casenum} | ${co.type}`,
 						description: `**Reason**: ${(co.reason?co.reason:'\`No reason listed!\`')}`,
-						color: color[co.type],
+						color: Constants.CaseColors[co.type],
 						author: {
-							name: `${co.username} (${co.userid})` // duh
+							name: `${co.username} (${co.userid})`
 						},
 						footer: {
 							text: `Date: ${new Date(co.timestamp).toString()} | Moderator: ${co.moderator}`
