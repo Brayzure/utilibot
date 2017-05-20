@@ -7,3 +7,10 @@ module.exports.Roles = {
 	Staff: 12,
 	All: 31
 }
+
+module.exports.CaseColors = {
+	Ban: 0xFF0000,
+	Kick: 0xFFA500,
+	Mute: 0xFFFF00,
+	Warn: 0x00FF00
+}

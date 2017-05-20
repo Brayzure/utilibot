@@ -13,8 +13,8 @@ I welcome contributions, but please follow the [guidelines](CONTRIBUTING.md).
 It is expected that you have an intermediate level of experience with both Node.js
 and the Discord API in general.
 
-You will need to set up a local instance of the serverConfig database. Full documentation
-for that will be coming soon(tm).
+You will need to set up a local instance of the serverConfig, audit, and member tables.
+Full documentation for that will be coming soon(tm).
 
 ## Support
 For support with the existing bot, or to get more information on the rewrite or its
