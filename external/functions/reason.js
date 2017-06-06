@@ -13,37 +13,31 @@ var func = {
 	desc: "Updates the reason for a case",
 	long_desc: "Updates the reason for a case",
 	usage: "reason <case number> <reason>",
-	run: function(m, args, client, context) {
-		return new Promise((resolve, reject) => {
-			if(args.length < 2) { // I'm an idiot
-				return reject(new Error("You must supply both a case number and a reason!"));
+	run: async function(m, args, client, context) {
+		try {
+			if(args.length < 2) {
+				return new Error("You must supply both a case number and a reason!");
 			}
 
 			if(isNaN(args[0])) {
-				return reject(new Error("First argument must be a case number!"));
+				return new Error("First argument must be a case number!");
 			}
 
 
 			let caseNum = parseInt(args[0]);
 			let reason = args.slice(1).join(' ');
 
-			db.getCase(m.channel.guild.id, caseNum).then((caseObject) => {
-				
-				if(!(context.roleMask & Constants.Roles.Admin) && m.author.id != caseObject.modid) {
-					return reject(new Error("You must be an admin or the moderator that performed the action to edit the reason!"));
-				}
+			let caseObject = await db.getCase(m.channel.guild.id, caseNum);
+			if(!(context.roleMask & Constants.Roles.Admin) && m.author.id != caseObject.modid) {
+				return new Error("You must be an admin or the moderator that performed the action to edit the reason!");
+			}
 
-				caseObject.reason = reason;
-				db.editReason(caseObject, client).then(() => {
-					return resolve();
-				}).catch((err) => {
-					return reject(err);
-				});
-			}).catch((err) => {
-				return reject(err);
-			})
-		});
-		
+			caseObject.reason = reason;
+			await db.editReason(caseObject, client);
+		}
+		catch (err) {
+			return err;
+		}		
 	}
 }
 

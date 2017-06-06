@@ -1,11 +1,13 @@
 module.exports.Roles = {
 	Member: 1,
 	Exempt: 2,
-	Mod: 4,
-	Admin: 8,
-	Developer: 16,
-	Staff: 12,
-	All: 31
+	SubMod: 4,
+	Mod: 8,
+	Admin: 16,
+	Developer: 32,
+	Staff: 28,
+	ModPlus: 24,
+	All: 63
 }
 
 module.exports.CaseColors = {

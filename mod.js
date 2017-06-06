@@ -124,56 +124,56 @@ client.on('shardResume', (id) => {
 });
 
 // All shards readied
-client.on('ready', () => {
+client.on('ready', async function() {
 	log('debug', "Discord client connected!");
 	// Get configs from database and cache them
-	db.getConfig().then((c) => {
-		log('debug', `Retrieved server config for ${Object.keys(c).length} servers!`);
+	let c = await db.getConfig();
+	log('debug', `Retrieved server config for ${Object.keys(c).length} servers!`);
 		
-		// Backfill config
-		let guildErrors = false;
-		let memberErrors = false;
-		let newGuilds = 0;
-		let newMembers = 0;
-		client.guilds.forEach((g) => {
-			// Guild config not found, make a default one
-			if(!c[g.id]) {
-				db.postConfig(g).then((cfg) => {
-					log('debug', `Generated new config for missing guild: ${g.name}`);
-					serverConfig[g.id] = cfg;
-					newGuilds++;
-				}).catch((err) => {
-					guildErrors = true;
-					log('console', err.toString());
-				});
+	// Backfill config
+	let guildErrors = false;
+	let memberErrors = false;
+	let newGuilds = 0;
+	let newMembers = 0;
+
+	for(guild of client.guilds) {
+		let g = guild[1];
+		if(!c[g.id]) {
+			try {
+				let cfg = await db.postConfig(g);
+				log('debug', `Generated new config for missing guild: ${g.name}`);
+				serverConfig[g.id] = cfg;
+				newGuilds++;
 			}
-
-			// Iterate over all members
-			g.members.forEach((mem) => {
-				// Instead of loading 200k members into member, let the db handle conflicts
-				db.postMember(mem).then(() => {
-					newMembers++;
-					return;
-				}).catch((err) => {
-					memberErrors = true;
-					log('console', err.toString());
-				})
-			});
-		});
-		serverConfig = c;
-		ready = true;
-
-		if(guildErrors) {
-			log('botlog', "There were errors creating new guild configs, please review console.");
+			catch (err) {
+				guildErrors = true;
+				log('console', err.toString());
+			}
 		}
 
-		if(memberErrors) {
-			log('botlog', "There were errors creating new member data, please review console.");
+		for(member of g.members) {
+			let mem = member[1];
+			try {
+				await db.postMember(mem);
+				newMembers++;
+			}
+			catch (err) {
+				memberErrors = true;
+				log('console', err.toString());
+			}
 		}
-		log('botlog', `Client has finished initialization! ${newGuilds} new guilds and ${newMembers} new members.`);
-	}).catch((err) => {
-		throw err;
-	});
+	}
+	serverConfig = c;
+	ready = true;
+
+	if(guildErrors) {
+		log('botlog', "There were errors creating new guild configs, please review console.");
+	}
+
+	if(memberErrors) {
+		log('botlog', "There were errors creating new member data, please review console.");
+	}
+	log('botlog', `Client has finished initialization! ${newGuilds} new guilds and ${newMembers} new members.`);
 });
 
 // New message detected
@@ -295,6 +295,9 @@ client.on('guildMemberRemove', (guild, member) => {
 client.on('guildMemberUpdate', (guild, newMember, oldMember) => {
 	let str = '';
 	let username = `${newMember.user.username}#${newMember.user.discriminator}`;
+	if(!oldMember || !newMember) {
+		return;
+	}
 	
 	// Nickname was changed, not necessarily by the member themselves
 	if(newMember.nick !== oldMember.nick) {
@@ -333,7 +336,7 @@ client.on('guildMemberUpdate', (guild, newMember, oldMember) => {
 });
 
 // Overall command handler
-function processCommand(m, pm, roleMask) {
+async function processCommand(m, pm, roleMask) {
 	let temp = m.content.split(' ');
 	let cmd = temp[0].slice(config.global_prefix.length);
 	if(cmd === "override" || cmd === "o" && roleMask & Constants.Roles.Developer) {
@@ -348,12 +351,17 @@ function processCommand(m, pm, roleMask) {
 
 	// Inform user that command must be run in a guild
 	if(functions[cmd].guildOnly && pm) {
-		m.channel.createMessage({
-			embed: {
-				color: 0xED1C24,
-				description: "You must run this command in a guild!"
-			}
-		}).catch(console.log);
+		try {
+			await m.channel.createMessage({
+				embed: {
+					color: 0xED1C24,
+					description: "You must run this command in a guild!"
+				}
+			});
+		}
+		catch (err) {
+			console.log(err);
+		}
 		return;
 	}
 
@@ -372,16 +380,24 @@ function processCommand(m, pm, roleMask) {
 		};
 
 		// Run command and handle response
-		functions[cmd].run(m, args, client, context).catch((e) => {
-			if(e) {
-				m.channel.createMessage({
-					embed: {
-						color: 0xED1C24,
-						description: e.toString()
-					}
-				}).catch(console.log);
+		try {
+			functions[cmd].run(m, args, client, context);
+		}
+		catch (err) {
+			if(err) {
+				try {
+					await m.channel.createMessage({
+						embed: {
+							color: 0xED1C24,
+							description: err.toString()
+						}
+					});
+				}
+				catch (err) {
+					console.log(err);
+				}
 			}
-		});
+		}
 	}
 }
 
@@ -559,3 +575,4 @@ function shutdown() {
 	// Things to do before we quit
 	process.exit()
 }
+

@@ -12,14 +12,15 @@ var func = {
 	desc: "Pings the bot",
 	long_desc: "Pings the bot and displays current shard's latency",
 	usage: "ping",
-	run: function(m, args, client, context) {
-		return new Promise((resolve, reject) => {
-			m.channel.createMessage(`Pong! (Latency: ${m.channel.guild.shard.latency}ms)`).then((m) => {
-				return resolve();
-			}).catch((e) => {
-				return reject();
-			});
-		});
+	run: async function(m, args, client, context) {
+		try {
+			let latency = m.channel.guild.shard.latency;
+			let shardID = m.channel.guild.shard.id;
+			await m.channel.createMessage(`Pong! (Latency: ${latency}ms | Shard ${shardID})`);
+		}
+		catch (err) {
+			return err;
+		}
 	}
 }
 

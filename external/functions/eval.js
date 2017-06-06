@@ -12,10 +12,10 @@ var func = {
 	desc: "Evaluates a command",
 	long_desc: "Evaluates a command",
 	usage: "eval <command>",
-	run: function(m, args, client, context) {
-		return new Promise((resolve, reject) => {
+	run: async function(m, args, client, context) {
+		try {
 			if(m.author.id !== context.config.dev_id) {
-				return reject(new Error("Must be developer to use this command."));
+				return new Error("Must be developer to use this command.");
 			}
 
 			let exp = args.join(' ');
@@ -32,12 +32,11 @@ var func = {
 				emb.color = 0xED1C24;
 			}
 			emb.description = desc;
-			m.channel.createMessage({embed: emb}).then((m) => {
-				return resolve();
-			}).catch((e) => {
-				return reject(e);
-			});
-		});
+			await m.channel.createMessage({embed: emb});
+		}
+		catch (err) {
+			return err;
+		}
 	}
 }
 

@@ -13,21 +13,21 @@ var func = {
 	desc: "Kicks a user",
 	long_desc: "Kicks a user from the server",
 	usage: "kick <user mention/id> <reason>",
-	run: function(m, args, client, context) {
-		return new Promise((resolve, reject) => {
+	run: async function(m, args, client, context) {
+		try {
 			if(!args.length) {
-				return reject("You need to specify a user to kick, either by mentioning them or using their user ID!");
+				return new Error("You need to specify a user to kick, either by mentioning them or using their user ID!");
 			}
 
 			let id = args[0].replace(/\D/g,'');
 			if(id.length < 16) {
-				return reject("You need to specify a user to kick, either by mentioning them or using their user ID!");
+				return new Error("You need to specify a user to kick, either by mentioning them or using their user ID!");
 			}
 
 			let u = m.channel.guild.members.get(id);
 
 			if(!u) {
-				return reject("Could not find that user, make sure you mentioned them or used their user ID!");
+				return new Error("Could not find that user, make sure you mentioned them or used their user ID!");
 			}
 
 			let reason = "";
@@ -41,22 +41,15 @@ var func = {
 			}
 			str += "\nYou may rejoin at any time.\nConsider messaging the moderator for a more detailed explanation.";
 
-			utils.PM(id, str, client).then(() => {
-				u.kick();
-			});
+			await utils.PM(id, str, client);
+			await u.kick();
 
-			db.getNextCaseNumber(m.channel.guild.id).then((num) => {
-				db.postAudit(m.author, u, m.channel.guild, m.channel, "Kick", reason, num, 0, client, context.serverConfig[m.channel.guild.id])
-				.then(() => {
-					return resolve();
-				}).catch((err) => {
-					return reject(err);
-				});
-			}).catch((err) => {
-				reject(err);
-			});
-		});
-		
+			let num = await db.getNextCaseNumber(m.channel.guild.id);
+			await db.postAudit(m.author, u, m.channel.guild, m.channel, "Kick", reason, num, 0, client, context.serverConfig[m.channel.guild.id]);
+		}
+		catch (err) {
+			return err;
+		}		
 	}
 }
 

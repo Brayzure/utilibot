@@ -12,8 +12,8 @@ var func = {
 	desc: "List the roles in a server",
 	long_desc: "Lists all roles in a server, along with their IDs",
 	usage: "eval <command>",
-	run: function(m, args, client, context) {
-		return new Promise((resolve, reject) => {
+	run: async function(m, args, client, context) {
+		try {
 			let str = "**Server Roles**";
 			m.channel.guild.roles.forEach((role) => {
 				str += `\n${role.name}   [${role.id}] `;
@@ -23,14 +23,12 @@ var func = {
 				// Code to post multiple messages, probably from utils
 			}
 			else {
-				m.channel.createMessage(msg[0]).then((m) => {
-					return resolve();
-				}).catch((e) => {
-					return reject(e);
-				});
+				await m.channel.createMessage(msg[0]);
 			}
-		});
-		
+		}
+		catch (err) {
+			return err;
+		}		
 	}
 }
 
