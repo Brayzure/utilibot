@@ -5,7 +5,7 @@
 	"shards": 1,
 	"error_channel": "",
 	"log_channel": "",
-	"pm_channel": ""
+	"pm_channel": "",
 	"global_prefix": "!!!",
-	"dev_id": "97771062690865152",
+	"dev_id": "97771062690865152"
 }
