@@ -47,7 +47,7 @@ var functions = {
 			await functions.postAuditMessage(guild.id, caseObject, client);
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	getNextCaseNumber: async function(guildID) {
@@ -60,7 +60,7 @@ var functions = {
 			return resolve(result.rows.length ? result.rows[0].casenum + 1 : 1);
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	editReason: async function(caseObject, client) {
@@ -73,7 +73,7 @@ var functions = {
 			await functions.postAuditMessage(caseObject.guildid, caseObject, client);
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	getCase: async function(guildID, casenum) {
@@ -90,7 +90,7 @@ var functions = {
 			return result.rows[0];
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	postAuditMessage: async function(guildID, caseObject, client) {
@@ -136,7 +136,7 @@ var functions = {
 			}
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	getConfig: async function(guildid) {
@@ -153,12 +153,14 @@ var functions = {
 					prefix: row.prefix,
 					admin: row.admin,
 					mod: row.mod,
+					subMod: row.sub_mod,
 					exempt: row.exempt,
 					blacklist: row.blacklist,
 					verboseIgnore: row.verbose_ignore,
 					verboseSettings: JSON.parse(row.verbose_settings),
 					filterSettings: JSON.parse(row.filter_settings),
-					muted: row.muted
+					muted: row.muted,
+					locale: row.locale
 				}
 			}
 			if(guildid) {
@@ -169,7 +171,7 @@ var functions = {
 			}
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	postConfig: async function(guild, info) {
@@ -184,6 +186,7 @@ var functions = {
 					name: guild.name,
 					admin: [],
 					mod: [],
+					subMod: [],
 					exempt: [],
 					verboseIgnore: [],
 					verboseSettings: "",
@@ -197,16 +200,17 @@ var functions = {
 			// Construct query
 			let q = "INSERT INTO server_config VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (id) ";
 			q += "DO UPDATE SET announce = $2, modlog = $3, verboselog = $4, prefix = $5, name = $6, admin = $7, mod = $8, exempt = $9, ";
-			q += "verbose_ignore = $10, verbose_settings = $11, filter_settings = $12, muted = $13, blacklist = $14, locale = $15"
+			q += "verbose_ignore = $10, verbose_settings = $11, filter_settings = $12, muted = $13, blacklist = $14, locale = $15, ";
+			q += "sub_mod = $16"
 			await pg.query({
 				text: q,
-				values: [guild.id, info.announce, info.modlog, info.verbose, info.prefix, info.name, info.admin, info.mod, info.exempt, info.verboseIgnore, JSON.stringify(info.verboseSettings), JSON.stringify(info.filterSettings), info.muted, info.blacklist, info.locale]
+				values: [guild.id, info.announce, info.modlog, info.verbose, info.prefix, info.name, info.admin, info.mod, info.exempt, info.verboseIgnore, JSON.stringify(info.verboseSettings), JSON.stringify(info.filterSettings), info.muted, info.blacklist, info.locale, info.subMod]
 			});
 
 			return info;
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	postMember: async function(member, info) {
@@ -243,7 +247,7 @@ var functions = {
 			}
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	getMember: async function(member) {
@@ -255,13 +259,13 @@ var functions = {
 			});
 
 			if(!res.rows.length) {
-				return new Error(`No member found with ID: ${member.user.id} and Guild ID: ${member.guild.id}`);
+				throw new Error(`No member found with ID: ${member.user.id} and Guild ID: ${member.guild.id}`);
 			}
 
 			return result.rows[0];
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	postNickname: async function(member) {
@@ -273,7 +277,7 @@ var functions = {
 			});
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	postUsername: async function(member) {
@@ -286,7 +290,7 @@ var functions = {
 			});
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	postData: async function(guildCount, userCount) {
@@ -297,7 +301,7 @@ var functions = {
 			});
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	getFutureActions: async function() {
@@ -319,7 +323,7 @@ var functions = {
 			return actions;
 		}
 		catch (err) {
-			return err;
+			throw err;
 		}
 	},
 	getLocale: async function(guild) {
