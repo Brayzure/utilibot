@@ -20,6 +20,8 @@ log('debug', "Loaded external files!");
 const Constants = require('./external/constants.js');
 const db = require('./external/db.js');
 const utils = require('./external/utils.js');
+const locale = require('./external/locale.js');
+
 const functionList = require('./external/functions/index.json');
 var functions = {};
 for(func of functionList) {
@@ -58,11 +60,62 @@ var modMutex = {};
 var serverConfig = {};
 // Client readiness
 var ready = false;
+// Locale cache
+var localeCache = {};
+// Time constants
+const second = 1e3;
+const minute = 60*second;
+const hour = 60*minute;
+const day = 24*hour;
+const week = 7*day;
+const month = 30*day;
+const year = 365*day;
 
-log('debug', "Creating clients...");
+/*
+* FUTURE ACTIONS
+*/
+async function checkFuture() {
+	try {
+		let now = new Date().getTime();
+		let actions = await db.getFutureActions();
+		for(action of actions) {
+			switch(action.type) {
+				case 'unban':
+					let guild = client.guilds.get(action.guild);
+					if(!guild) {
+						return;
+					}
+					let bans = guild.getBans();
+					let hits = bans.filter(item => item.id = action.member);
+					if(!hits.length) {
+						return;
+					}
+					guild.unbanMember(action.member, "Temporary ban automatically expired.");
+					break;
+				case 'unmute':
+					let guild = client.guilds.get(action.guild);
+					if(!guild) {
+						return;
+					}
+					let member = guild.members.get(action.member);
+					if(member) {
+						unmute(action.guild, action.member);
+					}
+					break;
+				default:
+					break;
+			}
+		}
+	}
+	catch (err) {
+		console.log(err);
+	}
+}
+
 /*
 * CLIENT CREATION AND CONNECTION
 */
+log('debug', "Creating clients...");
 var client = new Eris(auth.token, {
 	getAllUsers: true,
 	disableEvents: {
@@ -177,7 +230,7 @@ client.on('ready', async function() {
 });
 
 // New message detected
-client.on('messageCreate', (m) => {
+client.on('messageCreate', async (m) => {
 	// Client not ready, let's avoid strange behavior
 	if(!ready) return;
 
@@ -206,21 +259,28 @@ client.on('messageCreate', (m) => {
 
 	// Not a PM
 	else if(m.channel.guild){
+		if(!m.member) {
+			console.log(m);
+			return;
+		}
+
 		// Get permissions of user
 		let p = utils.permissions(m.channel.guild, m.channel, m.author);
 		// console.log(exempt(m.channel.guild, m.channel, m.member));
 
-		let sc = serverConfig[m.channel.guild.id];
-		// Return if no config found. TODO: Make it more descriptive
-		if(!sc) {
-			db.postConfig(m.channel.guild).then((c) => {
+		// Post config if no config found. TODO: Make it more descriptive
+		if(!serverConfig[m.channel.guild.id]) {
+			try {
+				let c = await db.postConfig(m.channel.guild);
 				log('debug', `Generated new config for missing guild: ${m.channel.guild.name}`);
 				serverConfig[m.channel.guild.id] = c;
-			}).catch((err) => {
+			}
+			catch (err) {
 				log('console', err.toString());
-			});
-			return;
+				return;
+			}
 		}
+		let sc = serverConfig[m.channel.guild.id];
 		
 		// Needed for both commands and the filters
 		let roleMask = getRoleMask(m.channel.guild, m.channel, m.member);
@@ -242,9 +302,7 @@ client.on('messageDelete', (m) => {
 	if(!m.author || !m.channel.guild || !ready) {
 		return;
 	}
-	let str = `**Channel**: <#${m.channel.id}> **${m.author.username}#${m.author.discriminator}'s** message was deleted. Content:\n`;
-	str += m.cleanContent;
-	verbose(m.channel.guild, 'MessageDelete', str);
+	verbose(m.channel.guild, 'MessageDelete', locale['en'].VERBOSE_MESSAGE_DELETE(m.channel, m.author, m));
 });
 
 // We joined a new guild!
@@ -260,8 +318,7 @@ client.on('guildCreate', (g) => {
 
 // A guild member got banned
 client.on('guildBanAdd', (guild, user) => {
-	let str = `**${user.username}#${user.discriminator}** was banned from the guild. Total members: **${guild.memberCount}**`;
-	verbose(guild, "UserMod", str);
+	verbose(guild, "UserMod", locale['en'].VERBOSE_GUILD_BAN(user, guild));
 });
 
 // A guild member got unbanned
@@ -318,7 +375,15 @@ client.on('guildMemberUpdate', (guild, newMember, oldMember) => {
 		let oldRoles = [];
 		let newRoles = [];
 		for(let i=0; i<oldMember.roles.length; i++) {
-			oldRoles.push(guild.roles.get(oldMember.roles[i]).name);
+			let role = guild.roles.get(oldMember.roles[i]);
+			
+			// In case role was removed because said role was deleted
+			if(!role) {
+				oldRoles.push('deleted-role');
+			}
+			else {
+				oldRoles.push(guild.roles.get(oldMember.roles[i]).name);
+			}
 		}
 		for(let i=0; i<newMember.roles.length; i++) {
 			newRoles.push(guild.roles.get(newMember.roles[i]).name);
@@ -337,8 +402,9 @@ client.on('guildMemberUpdate', (guild, newMember, oldMember) => {
 
 // Overall command handler
 async function processCommand(m, pm, roleMask) {
-	let temp = m.content.split(' ');
-	let cmd = temp[0].slice(config.global_prefix.length);
+	let args = m.content.split(' ');
+	let cmd = args[0].slice(config.global_prefix.length);
+	args = args.slice(1);
 	if(cmd === "override" || cmd === "o" && roleMask & Constants.Roles.Developer) {
 		cmd = args[0];
 		args = args.slice(1);
@@ -366,22 +432,40 @@ async function processCommand(m, pm, roleMask) {
 	}
 
 	// Parse commands
-	let args = temp.slice(1);
 	console.log(cmd, args, roleMask); // Remove before full deployment
 	if(roleMask & functions[cmd].perm) {
-		
+		let l = locale[serverConfig[m.channel.guild.id].locale];
+		if(!l) {
+			l = locale['en'];
+		}
+
 		// Acknowledge message with check mark reaction if possible
 		ack(m);
 		let context = {
 			config: config,
 			serverConfig: serverConfig,
 			modMutex: modMutex,
-			roleMask: roleMask
+			roleMask: roleMask,
+			locale: l
 		};
 
 		// Run command and handle response
 		try {
-			functions[cmd].run(m, args, client, context);
+			let after = await functions[cmd].run(m, args, client, context);
+			if(after) {
+				let colors = [
+					0x008000, // 0: Success
+					0x808000, // 1: Caution,
+					0x000080 // 2: Informational
+				];
+
+				await m.channel.createMessage({
+					embed: {
+						color: colors[after.code],
+						description: after.message
+					}
+				});
+			}
 		}
 		catch (err) {
 			if(err) {

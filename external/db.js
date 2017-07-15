@@ -146,6 +146,7 @@ var functions = {
 			for(let row of result.rows) {
 				serverConfig[row.id] = {
 					name: row.name,
+					locale: row.locale,
 					announce: row.announce,
 					modlog: row.modlog,
 					verbose: row.verboselog,
@@ -179,7 +180,7 @@ var functions = {
 					announce: "",
 					modlog: "",
 					verbose: "",
-					literal: config.global_prefix,
+					prefix: config.global_prefix,
 					name: guild.name,
 					admin: [],
 					mod: [],
@@ -188,17 +189,18 @@ var functions = {
 					verboseSettings: "",
 					filterSettings: "",
 					muted: "",
-					blacklist: []
+					blacklist: [],
+					locale: "en"
 				};
 			}
 
 			// Construct query
 			let q = "INSERT INTO server_config VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (id) ";
 			q += "DO UPDATE SET announce = $2, modlog = $3, verboselog = $4, prefix = $5, name = $6, admin = $7, mod = $8, exempt = $9, ";
-			q += "verbose_ignore = $10, verbose_settings = $11, filter_settings = $12, muted = $13, blacklist = $14"
+			q += "verbose_ignore = $10, verbose_settings = $11, filter_settings = $12, muted = $13, blacklist = $14, locale = $15"
 			await pg.query({
 				text: q,
-				values: [guild.id, info.announce, info.modlog, info.verbose, info.literal, info.name, info.admin, info.mod, info.exempt, info.verboseIgnore, JSON.stringify(info.verboseSettings), JSON.stringify(info.filterSettings), info.muted, info.blacklist]
+				values: [guild.id, info.announce, info.modlog, info.verbose, info.prefix, info.name, info.admin, info.mod, info.exempt, info.verboseIgnore, JSON.stringify(info.verboseSettings), JSON.stringify(info.filterSettings), info.muted, info.blacklist, info.locale]
 			});
 
 			return info;
@@ -285,6 +287,72 @@ var functions = {
 		}
 		catch (err) {
 			return err;
+		}
+	},
+	postData: async function(guildCount, userCount) {
+		try {
+			await pg.query({
+				text: "INSERT INTO data VALUES($1, $2, $3)",
+				values: [guildCount, userCount, new Date()]
+			});
+		}
+		catch (err) {
+			return err;
+		}
+	},
+	getFutureActions: async function() {
+		try {
+			let now = new Date().getTime();
+
+			let result = await pg.query({
+				text: "SELECT * FROM future_actions WHERE timestamp - $1 < 5000",
+				values: [now]
+			});
+
+			let actions = [];
+
+			for(item of result.rows) {
+				item.data = JSON.parse(item.data);
+				actions.push(item);
+			}
+
+			return actions;
+		}
+		catch (err) {
+			return err;
+		}
+	},
+	getLocale: async function(guild) {
+		try {
+			let result = await pg.query({
+				text: "SELECT locale FROM server_config WHERE id = $1",
+				values: [guild.id]
+			});
+
+			if(!result.rows.length) {
+				return 'en';
+			}
+			else {
+				return result.rows[0].locale;
+			}
+		}
+		catch (err) {
+			throw err;
+		}
+	},
+	setMute: async function(guild, member, mute) {
+		try {
+			let result = await pg.query({
+				text: "UPDATE members SET muted = $1 WHERE id = $2 AND guildid = $3 RETURNING *",
+				values: [mute, member.id, guild.id]
+			});
+
+			if(result.rows.length) {
+				return result.rows[0];
+			}
+		}
+		catch (err) {
+			throw err;
 		}
 	}
 }
