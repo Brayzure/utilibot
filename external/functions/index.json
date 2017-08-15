@@ -5,5 +5,9 @@
 	"warn",
 	"kick",
 	"ban",
-	"reason"
+	"reason",
+	"mute",
+	"unmute",
+	"add",
+	"set"
 ]
